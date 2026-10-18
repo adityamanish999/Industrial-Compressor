@@ -180,7 +180,7 @@ else:
                 
             st.markdown("### Evaluation on Known Failure Windows (full dataset)")
             if results is None:
-                st.info("Run src/anomaly_detection.py (or src/evaluation.py) to generate evaluation results.")
+                st.info("Run src/anomaly_detection.py to generate evaluation results.")
             else:
                 rows = {name: results[key] for name, key in
                         [('K-Means', 'kmeans'), ('One-Class SVM', 'ocsvm'), ('DBSCAN (10k subsample)', 'dbscan')]}

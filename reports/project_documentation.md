@@ -1,10 +1,9 @@
 # Project Documentation & Model Evaluation
 
 ## Pipeline
-1. `download_data.py` fetches MetroPT-3 (15.1M rows, 1Hz).
-2. `data_preprocessing.py` drops the unnamed index column and duplicate rows, forward-fills missing values, resamples to 1-minute means, engineers features and fits a `StandardScaler`.
-3. `anomaly_detection.py` trains K-Means (k=2), One-Class SVM (nu=0.05, 10k subsample) and DBSCAN (eps from k-distance curve, min_samples=10, same subsample), saves a fixed K-Means anomaly threshold, then calls `evaluation.py`.
-4. `streamlit_app.py` serves the K-Means model with the saved threshold.
+1. `data_preprocessing.py` first downloads MetroPT-3 from UCI if missing, then drops the unnamed index column and duplicate rows, forward-fills missing values, resamples to 1-minute means, engineers features and fits a `StandardScaler`.
+2. `anomaly_detection.py` trains K-Means (k=2), One-Class SVM (nu=0.05, 10k subsample) and DBSCAN (eps from k-distance curve, min_samples=10, same subsample), saves a fixed K-Means anomaly threshold, then runs its `evaluate()` step.
+3. `streamlit_app.py` serves the K-Means model with the saved threshold.
 
 ## Engineered Features
 - `pressure_gap` (TP3 - Reservoirs), `pressure_moving_avg` (30-sample TP3 average)
@@ -12,7 +11,7 @@
 - `motor_rolling_mean`, `motor_rolling_std` (10-sample motor current) and `motor_load_state` (current > 1A; threshold is an assumption to tune)
 
 ## Evaluation Methodology
-The data is largely unlabeled, so accuracy is not applicable. `src/evaluation.py` measures, and writes to `reports/evaluation_results.json`:
+The data is largely unlabeled, so accuracy is not applicable. `evaluate()` in `src/anomaly_detection.py` measures, and writes to `reports/evaluation_results.json`:
 - **Silhouette score** for K-Means (10,000-row sample) and DBSCAN (non-noise points, if more than one cluster is found).
 - **Failure window comparison**: precision, recall, false positive rate and number of failure windows hit, using the known air-leak periods defined in `FAILURE_WINDOWS`.
 - **Distance from centroid**: K-Means flags rows whose distance to the nearest centroid exceeds the 95th percentile of *training* distances.

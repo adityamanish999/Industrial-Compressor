@@ -30,8 +30,7 @@ pip install -r requirements.txt
 
 2. **Execute Data Pipeline**
 ```bash
-python src/download_data.py
-python src/data_preprocessing.py
+python src/data_preprocessing.py   # downloads the dataset if missing, then cleans it
 python src/anomaly_detection.py   # trains models and writes reports/evaluation_results.json
 ```
 Run every command from the repository root; `create_notebook.py` regenerates the EDA notebook.

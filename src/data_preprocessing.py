@@ -2,12 +2,40 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 import os
+import zipfile
+import joblib
+import requests
 from feature_engineering import apply_feature_engineering
+
+def download_data(dataset_path='data/MetroPT3(AirCompressor).csv'):
+    os.makedirs(os.path.dirname(dataset_path), exist_ok=True)
+    
+    if os.path.exists(dataset_path):
+        print(f"Dataset already exists at {dataset_path}")
+        return
+
+    zip_url = "https://archive.ics.uci.edu/static/public/791/metropt+3+dataset.zip"
+    zip_path = "data/metropt3.zip"
+    
+    print("Downloading MetroPT-3 Dataset from UCI...")
+    response = requests.get(zip_url, stream=True)
+    if response.status_code == 200:
+        with open(zip_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print("Download complete. Extracting...")
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall('data/')
+        os.remove(zip_path)
+        print(f"Extracted dataset. Ensure the CSV is named properly at {dataset_path}")
+    else:
+        print(f"Failed to download. Status code: {response.status_code}")
+
 
 def load_and_preprocess(filepath='data/MetroPT3(AirCompressor).csv'):
     print(f"Loading data from {filepath}...")
     if not os.path.exists(filepath):
-        raise FileNotFoundError(f"File {filepath} not found. Please run download_data.py first.")
+        raise FileNotFoundError(f"File {filepath} not found. Run data_preprocessing.py to download it first.")
     
     # The dataset is large (15M rows at 1Hz), so it is resampled to 1-minute means below.
 
@@ -53,12 +81,12 @@ def load_and_preprocess(filepath='data/MetroPT3(AirCompressor).csv'):
     return df_resampled, df_scaled, scaler
 
 if __name__ == '__main__':
+    download_data()
     df, df_scaled, scaler = load_and_preprocess()
     print("Data preprocessed successfully. Shape:", df_scaled.shape)
     os.makedirs('models', exist_ok=True)
     os.makedirs('cleaned_data', exist_ok=True)
     
-    import joblib
     joblib.dump(scaler, 'models/scaler.pkl')
     print("Saved scaler to models/scaler.pkl")
     

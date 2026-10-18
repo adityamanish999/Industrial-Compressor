@@ -34,15 +34,14 @@ Your friend must present this project to a professor. This is a read-only explan
 
 ## 3. File-by-file
 ```
-data/                       raw CSV (git-ignored, created by download_data.py)
-cleaned_data/               compressor_cleaned.csv (git-ignored)
-models/                     scaler.pkl, kmeans.pkl, ocsvm.pkl, dbscan.pkl (git-ignored)
-src/download_data.py        step 1
-src/feature_engineering.py  helper used by steps 2 and by prediction
-src/data_preprocessing.py   step 2
-src/anomaly_detection.py    step 3 (training)
+data/                       raw CSV (git-ignored, downloaded by data_preprocessing.py)
+cleaned_data/               compressor_cleaned.csv
+models/                     scaler.pkl, kmeans.pkl, ocsvm.pkl, dbscan.pkl, threshold.pkl
+src/feature_engineering.py  helper used by preprocessing and by prediction
+src/data_preprocessing.py   step 1 (download + clean + scale)
+src/anomaly_detection.py    step 2 (training + evaluation)
 src/prediction.py           inference helper (not called by the dashboard)
-app/streamlit_app.py        step 4 (the UI)
+app/streamlit_app.py        step 3 (the UI)
 notebooks/EDA_...ipynb      exploratory analysis
 create_notebook.py          script that generates that notebook
 reports/project_documentation.md   evaluation and model-comparison write-up
@@ -50,26 +49,24 @@ README.md, requirements.txt, .gitignore, CLAUDE.md
 ```
 
 ## 4. Execution order (start → end)
-**Start:** `python src/download_data.py`
-1. **download_data.py** → `data/MetroPT3(AirCompressor).csv`
-2. **data_preprocessing.py** → reads the CSV, cleans it, resamples to 1 minute, adds features, fits the scaler → `cleaned_data/compressor_cleaned.csv` + `models/scaler.pkl`
-3. **anomaly_detection.py** → loads the cleaned CSV and scaler, trains the 3 models → `models/kmeans.pkl`, `ocsvm.pkl`, `dbscan.pkl`
-4. **streamlit_app.py** (`streamlit run app/streamlit_app.py`) → loads CSV, scaler and K-Means, shows anomalies.
+**Start:** `python src/data_preprocessing.py`
+1. **data_preprocessing.py** → downloads `data/MetroPT3(AirCompressor).csv` if missing, reads it, cleans it, resamples to 1 minute, adds features, fits the scaler → `cleaned_data/compressor_cleaned.csv` + `models/scaler.pkl`
+2. **anomaly_detection.py** → loads the cleaned CSV and scaler, trains the 3 models, evaluates them → `models/*.pkl` and `reports/evaluation_results.json`
+3. **streamlit_app.py** (`streamlit run app/streamlit_app.py`) → loads CSV, scaler and K-Means, shows anomalies.
 
 **End:** the dashboard in the browser. The EDA notebook is a side branch (it reads the raw CSV directly).
 
 Data flow: raw CSV → ffill/dropna → 1-min mean → features → StandardScaler → models → dashboard.
 
 ## 5. Function-by-function
-- **download_data.main()**: creates `data/`, skips if the file exists, downloads the UCI zip in 8KB chunks, extracts it, deletes the zip. It prints a message if the status code isn't 200.
+- **data_preprocessing.download_data()**: creates `data/`, skips if the file exists, downloads the UCI zip in 8KB chunks, extracts it, deletes the zip. It prints a message if the status code isn't 200.
 - **feature_engineering.apply_feature_engineering(df)**: adds `pressure_gap = TP3 − Reservoirs` (leak indicator), `temp_rolling_mean` and `temp_rolling_std` (10-sample window on Oil_temperature), then drops NaN rows created by rolling.
-- **data_preprocessing.load_and_preprocess(filepath, sample_frac)**:
+- **data_preprocessing.load_and_preprocess(filepath)**:
   - reads the CSV and converts `timestamp` to datetime index;
   - forward-fills missing values and drops any remaining NaN;
   - resamples to 1-minute mean (about 1.5M raw rows → 242k rows after dedup);
   - calls feature engineering;
   - fits `StandardScaler` (mean 0, std 1) and returns `(df_resampled, df_scaled, scaler)`.
-  - `sample_frac` is an unused parameter.
   - The `__main__` block saves the scaler and the **unscaled** cleaned CSV.
 - **anomaly_detection.train_models()**:
   - loads the cleaned CSV and scaler, then scales;
@@ -101,7 +98,7 @@ Data flow: raw CSV → ffill/dropna → 1-min mean → features → StandardScal
 - **Why K-Means for the dashboard?** It is cheap to infer on new points. OCSVM is about O(N³) to train and slow to predict, and DBSCAN is O(N²) memory with no predict.
 - **Why k=2?** Simple split into normal and extreme operation. Acknowledge it is a design choice. Elbow or silhouette tuning is future work.
 - **Why 95th percentile?** An adjustable alert-rate assumption (about 5% flagged). The threshold is fixed from the training data (`models/threshold.pkl`), so it flags 5% of training data and more or fewer on new data; the dashboard banner turns Warning/Alert when the recent anomaly rate climbs.
-- **How did you evaluate?** Visual inspection, distance-from-centroid, model comparison (cost, real-time fit). Silhouette (K-Means 0.49) and failure-window precision/recall are computed in `src/evaluation.py`.
+- **How did you evaluate?** Visual inspection, distance-from-centroid, model comparison (cost, real-time fit). Silhouette (K-Means 0.49) and failure-window precision/recall are computed in `evaluate()` in `src/anomaly_detection.py`.
 - **Failure-window precision?** Implemented: K-Means precision 0.30, recall 0.73, hits 4/4 windows.
 - **Does it handle duplicates?** Yes, 57,475 duplicate rows are removed.
 - **Is it truly real-time?** It simulates monitoring on the tail of historical data. A live feed (Kafka/Spark) is listed as future work.
@@ -110,7 +107,7 @@ Data flow: raw CSV → ffill/dropna → 1-min mean → features → StandardScal
 ## 8. What was added after review (the final version)
 - Duplicate removal, plus dropping the unnamed index column.
 - Extra features: motor-current rolling mean/std, motor load state, 30-sample pressure moving average (22 features total).
-- `src/evaluation.py`: silhouette score, precision/recall/false-positive rate against known failure windows, and inference time, saved to `reports/evaluation_results.json`.
+- `evaluate()` in `src/anomaly_detection.py`: silhouette score, precision/recall/false-positive rate against known failure windows, and inference time, saved to `reports/evaluation_results.json`.
 - Fixed alert threshold saved at training time (`models/threshold.pkl`), so the dashboard no longer flags a fixed 5% of any window.
 - Dashboard: Normal/Warning/Alert banner, PCA cluster plot, real results table.
 - DBSCAN `eps` tuned from the k-distance curve. Notebook extended and executed.
