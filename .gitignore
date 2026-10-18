@@ -3,7 +3,5 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 data/
-cleaned_data/
-models/
 .env
 MetroPT3(AirCompressor).csv
