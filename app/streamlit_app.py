@@ -51,6 +51,7 @@ else:
     else:
         st.sidebar.header("Settings")
         num_rows = st.sidebar.slider("Number of data points to visualize", min_value=100, max_value=5000, value=1000, step=100)
+        st.sidebar.caption("Simulated live monitoring: replays the latest N one-minute readings from the dataset.")
         
         # Take a subset for visualization
         df_viz = df.tail(num_rows).copy()
@@ -83,6 +84,7 @@ else:
             threshold = joblib.load(threshold_path)
             
             df_viz['Anomaly'] = distances > threshold
+            df_viz['Distance_to_centroid'] = distances
             anomaly_rate = df_viz['Anomaly'].mean()
             
             # Compressor health status (training baseline flags ~5% of rows)
@@ -92,6 +94,8 @@ else:
                 st.warning(f"Compressor health: WARNING ({anomaly_rate:.1%} of recent readings anomalous)")
             else:
                 st.error(f"Compressor health: ALERT ({anomaly_rate:.1%} of recent readings anomalous)")
+            st.caption("Normal: under 10% anomalous | Warning: 10-25% | Alert: above 25%. "
+                       "Normal operation flags about 5% of readings.")
             
             # KPI Cards
             col1, col2, col3, col4 = st.columns(4)
@@ -107,11 +111,26 @@ else:
             anomalies = df_viz[df_viz['Anomaly']]
             fig_pressure.add_trace(go.Scatter(x=anomalies.index, y=anomalies['TP3'], mode='markers', marker=dict(color='red', size=8), name='Anomaly'))
             st.plotly_chart(fig_pressure, width='stretch')
+            st.caption("Red dots are readings flagged as anomalous.")
 
             st.subheader("Oil Temperature Analysis")
             fig_temp = px.line(df_viz.reset_index(), x='timestamp', y='Oil_temperature', title="Oil Temperature over Time")
             fig_temp.add_trace(go.Scatter(x=anomalies.index, y=anomalies['Oil_temperature'], mode='markers', marker=dict(color='red', size=8), name='Anomaly'))
             st.plotly_chart(fig_temp, width='stretch')
+            st.caption("Red dots are readings flagged as anomalous.")
+
+            st.subheader("Motor Current Analysis")
+            fig_motor = px.line(df_viz.reset_index(), x='timestamp', y='Motor_current', title="Motor Current over Time")
+            fig_motor.add_trace(go.Scatter(x=anomalies.index, y=anomalies['Motor_current'], mode='markers', marker=dict(color='red', size=8), name='Anomaly'))
+            st.plotly_chart(fig_motor, width='stretch')
+            st.caption("Red dots are readings flagged as anomalous.")
+
+            st.subheader("Anomaly Alerts")
+            if anomalies.empty:
+                st.success("No anomalies in this window.")
+            else:
+                st.dataframe(anomalies[['TP3', 'Oil_temperature', 'Motor_current', 'Distance_to_centroid']]
+                             .sort_index(ascending=False))
             
             st.subheader("Cluster Visualization (PCA, 2 components)")
             pcs = PCA(n_components=2).fit_transform(X_viz_scaled)
