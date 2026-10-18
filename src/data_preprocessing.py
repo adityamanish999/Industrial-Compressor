@@ -4,15 +4,13 @@ from sklearn.preprocessing import StandardScaler
 import os
 from feature_engineering import apply_feature_engineering
 
-def load_and_preprocess(filepath='data/MetroPT3(AirCompressor).csv', sample_frac=0.01):
+def load_and_preprocess(filepath='data/MetroPT3(AirCompressor).csv'):
     print(f"Loading data from {filepath}...")
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"File {filepath} not found. Please run download_data.py first.")
     
-    # Due to dataset size (15M rows), we'll read and sample it. 
-    # For a production pipeline we might resample time series, but here we read and downsample or aggregate.
-    # The dataset has a 'timestamp' column.
-    
+    # The dataset is large (15M rows at 1Hz), so it is resampled to 1-minute means below.
+
     df = pd.read_csv(filepath)
     
     print("Preprocessing data...")
@@ -25,7 +23,15 @@ def load_and_preprocess(filepath='data/MetroPT3(AirCompressor).csv', sample_frac
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         df.set_index('timestamp', inplace=True)
 
-    # Missing values
+    # The raw CSV carries an unnamed row-index column that must not become a model feature
+    df.drop(columns=[c for c in df.columns if c.startswith('Unnamed')], inplace=True)
+
+    # Duplicates (identical timestamp + readings) and missing values
+    before = len(df)
+    df = df[~df.index.duplicated(keep='first')]
+    df = df.drop_duplicates()
+    print(f"Removed {before - len(df)} duplicate rows")
+    df = df.sort_index()
     df.ffill(inplace=True)
     df.dropna(inplace=True)
     
@@ -49,8 +55,8 @@ def load_and_preprocess(filepath='data/MetroPT3(AirCompressor).csv', sample_frac
 if __name__ == '__main__':
     df, df_scaled, scaler = load_and_preprocess()
     print("Data preprocessed successfully. Shape:", df_scaled.shape)
-    os.makedirs('data', exist_ok=True)
     os.makedirs('models', exist_ok=True)
+    os.makedirs('cleaned_data', exist_ok=True)
     
     import joblib
     joblib.dump(scaler, 'models/scaler.pkl')

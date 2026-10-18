@@ -5,6 +5,6 @@ seaborn
 plotly
 scikit-learn
 streamlit
-ucimlrepo
 joblib
-tensorflow
+requests
+nbformat

@@ -4,7 +4,9 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import joblib
+import json
 import os
+from sklearn.decomposition import PCA
 
 st.set_page_config(page_title="Industrial Compressor Anomaly Detection", layout="wide", page_icon="⚙️")
 
@@ -29,8 +31,17 @@ def load_model():
         return joblib.load(model_path)
     return None
 
+@st.cache_data
+def load_results():
+    path = 'reports/evaluation_results.json'
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return None
+
 df = load_data()
 model = load_model()
+results = load_results()
 
 if df is None:
     st.warning("Processed data not found. Please run the data pipeline (download, preprocess).")
@@ -64,9 +75,23 @@ else:
             
             # Calculate distance to centroid
             distances = np.min(model.transform(X_viz_scaled), axis=1)
-            threshold = np.percentile(distances, 95) # Top 5% distances are anomalies
+            # Fixed threshold learned on the training data (95th percentile of training distances)
+            threshold_path = 'models/threshold.pkl'
+            if not os.path.exists(threshold_path):
+                st.error("Threshold not found! Run src/anomaly_detection.py.")
+                st.stop()
+            threshold = joblib.load(threshold_path)
             
             df_viz['Anomaly'] = distances > threshold
+            anomaly_rate = df_viz['Anomaly'].mean()
+            
+            # Compressor health status (training baseline flags ~5% of rows)
+            if anomaly_rate < 0.10:
+                st.success(f"Compressor health: NORMAL ({anomaly_rate:.1%} of recent readings anomalous)")
+            elif anomaly_rate < 0.25:
+                st.warning(f"Compressor health: WARNING ({anomaly_rate:.1%} of recent readings anomalous)")
+            else:
+                st.error(f"Compressor health: ALERT ({anomaly_rate:.1%} of recent readings anomalous)")
             
             # KPI Cards
             col1, col2, col3, col4 = st.columns(4)
@@ -88,6 +113,13 @@ else:
             fig_temp.add_trace(go.Scatter(x=anomalies.index, y=anomalies['Oil_temperature'], mode='markers', marker=dict(color='red', size=8), name='Anomaly'))
             st.plotly_chart(fig_temp, width='stretch')
             
+            st.subheader("Cluster Visualization (PCA, 2 components)")
+            pcs = PCA(n_components=2).fit_transform(X_viz_scaled)
+            fig_pca = px.scatter(x=pcs[:, 0], y=pcs[:, 1], color=np.where(df_viz['Anomaly'], 'Anomaly', 'Normal'),
+                                 color_discrete_map={'Normal': 'steelblue', 'Anomaly': 'red'},
+                                 labels={'x': 'PC1', 'y': 'PC2', 'color': ''})
+            st.plotly_chart(fig_pca, width='stretch')
+
             st.subheader("Recent Data Records")
             st.dataframe(df_viz.tail(10))
 
@@ -104,8 +136,7 @@ else:
                 st.subheader("K-Means")
                 km_model = joblib.load('models/kmeans.pkl')
                 distances = np.min(km_model.transform(X_viz_scaled), axis=1)
-                km_threshold = np.percentile(distances, 95)
-                km_anomalies = (distances > km_threshold).sum()
+                km_anomalies = (distances > threshold).sum()
                 st.metric("Detected Anomalies", km_anomalies)
                 st.write("**Pros:** Fast, scales well to large data, easy real-time prediction.")
                 st.write("**Cons:** Assumes spherical clusters, sensitive to outliers.")
@@ -128,5 +159,14 @@ else:
                 st.write("**Pros:** Density-based, ignores noise, doesn't need pre-defined clusters.")
                 st.write("**Cons:** Memory intensive ($O(N^2)$), struggles with varying densities.")
                 
-            st.markdown("### Anomaly Detection Agreement")
-            st.markdown("The chart below would typically show the overlap (Silhouette Score and Failure Window Comparison) of anomalies detected by each model. In our pipeline, **K-Means** was selected for the Real-Time Monitoring dashboard because it allows instantaneous $O(1)$ inference on new incoming sensor streams, unlike DBSCAN and OCSVM which are transductive or too slow for large-scale real-time streams.")
+            st.markdown("### Evaluation on Known Failure Windows (full dataset)")
+            if results is None:
+                st.info("Run src/anomaly_detection.py (or src/evaluation.py) to generate evaluation results.")
+            else:
+                rows = {name: results[key] for name, key in
+                        [('K-Means', 'kmeans'), ('One-Class SVM', 'ocsvm'), ('DBSCAN (10k subsample)', 'dbscan')]}
+                st.dataframe(pd.DataFrame(rows).T)
+                st.write(f"**Silhouette score (K-Means):** {results['silhouette_kmeans']}")
+                st.write("Failure windows are the known air-leak periods of MetroPT-3. "
+                         "K-Means was chosen for the dashboard because it scores new sensor readings instantly, "
+                         "unlike DBSCAN (no predict) and One-Class SVM (slow at scale).")

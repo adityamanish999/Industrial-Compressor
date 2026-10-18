@@ -1,0 +1,53 @@
+{
+  "failure_windows": [
+    [
+      "2020-04-18 00:00",
+      "2020-04-18 23:59"
+    ],
+    [
+      "2020-05-29 23:30",
+      "2020-05-30 06:00"
+    ],
+    [
+      "2020-06-05 10:00",
+      "2020-06-07 14:30"
+    ],
+    [
+      "2020-07-15 14:30",
+      "2020-07-15 19:00"
+    ]
+  ],
+  "kmeans_threshold": 5.884055250407916,
+  "silhouette_kmeans": 0.4902,
+  "kmeans": {
+    "rows_evaluated": 242475,
+    "anomalies_flagged": 12124,
+    "anomaly_rate": 0.05,
+    "precision_on_failure_windows": 0.297,
+    "recall_on_failure_windows": 0.7288,
+    "false_positive_rate": 0.0359,
+    "failure_windows_detected": "4/4",
+    "inference_seconds": 0.015
+  },
+  "ocsvm": {
+    "rows_evaluated": 242475,
+    "anomalies_flagged": 12588,
+    "anomaly_rate": 0.0519,
+    "precision_on_failure_windows": 0.073,
+    "recall_on_failure_windows": 0.186,
+    "false_positive_rate": 0.0491,
+    "failure_windows_detected": "4/4",
+    "inference_seconds": 2.866
+  },
+  "dbscan": {
+    "rows_evaluated": 10000,
+    "anomalies_flagged": 591,
+    "anomaly_rate": 0.0591,
+    "precision_on_failure_windows": 0.0525,
+    "recall_on_failure_windows": 0.1469,
+    "false_positive_rate": 0.0572,
+    "failure_windows_detected": "4/4",
+    "clusters_found": 13
+  },
+  "silhouette_dbscan": 0.2567
+}

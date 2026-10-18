@@ -15,7 +15,7 @@ The MetroPT-3 dataset contains multivariate time-series sensor readings collecte
 - `cleaned_data/` : Preprocessed and aggregated data
 - `notebooks/` : Exploratory Data Analysis
 - `models/` : Saved Machine Learning models & Scaler
-- `src/` : Core data pipeline (Download, Feature Engineering, Anomaly Detection)
+- `src/` : Core data pipeline (Download, Preprocessing, Feature Engineering, Anomaly Detection, Evaluation)
 - `app/` : Streamlit real-time monitoring dashboard
 - `reports/` : Deep dive documentation and evaluation metrics
 
@@ -32,8 +32,9 @@ pip install -r requirements.txt
 ```bash
 python src/download_data.py
 python src/data_preprocessing.py
-python src/anomaly_detection.py
+python src/anomaly_detection.py   # trains models and writes reports/evaluation_results.json
 ```
+Run every command from the repository root; `create_notebook.py` regenerates the EDA notebook.
 
 3. **Start Dashboard**
 ```bash
